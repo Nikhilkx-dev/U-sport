@@ -14,7 +14,9 @@ const authRoutes = require('./routes/authRoutes');
 const sportRoutes = require('./routes/sportRoutes');
 const facilityRoutes = require('./routes/facilityRoutes');
 const equipmentRoutes = require('./routes/equipmentRoutes');
+const returnRoutes = require('./routes/returnRoutes');
 const chatRoutes = require('./routes/chatRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -63,20 +65,35 @@ app.use(cors({
   credentials: true
 }));
 
-// Rate limiting
+// Rate limiting — relaxed in development to avoid blocking dev workflows
+const isDev = process.env.NODE_ENV !== 'production';
+
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200,
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 5000 : 300,
+  skip: () => isDev,
   message: { success: false, message: 'Too many requests, please try again later.' }
 });
+
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
-  message: { success: false, message: 'Too many auth attempts.' }
+  max: isDev ? 5000 : 200,  // generous limit — token refresh + login + OTP all share this
+  skip: () => isDev,
+  message: { success: false, message: 'Too many auth attempts. Please wait 15 minutes.' }
 });
 
 app.use('/api/', limiter);
 app.use('/api/auth/', authLimiter);
+
+// OTP-specific rate limiter (stricter, but still relaxed in dev)
+const otpLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: isDev ? 500 : 10,
+  skip: () => isDev,
+  message: { success: false, message: 'Too many OTP requests. Try again in 5 minutes.' }
+});
+app.use('/api/auth/verify-otp', otpLimiter);
+app.use('/api/auth/resend-otp', otpLimiter);
 
 // Body parser
 app.use(express.json({ limit: '10kb' }));
@@ -92,7 +109,76 @@ app.use('/api/auth', authRoutes);
 app.use('/api/sports', sportRoutes);
 app.use('/api/facility', facilityRoutes);
 app.use('/api/equipment', equipmentRoutes);
+app.use('/api/returns', returnRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/admin', adminRoutes);
+
+// Overdue return checker (runs every 1 hour)
+const checkOverdueReturns = async () => {
+  try {
+    const EquipmentRequest = require('./models/EquipmentRequest');
+    const result = await EquipmentRequest.updateMany(
+      {
+        status: { $in: ['approved', 'issued', 'partially_returned'] },
+        expectedReturnDate: { $lt: new Date() }
+      },
+      {
+        $set: { status: 'overdue' }
+      }
+    );
+    if (result.modifiedCount > 0) {
+      console.log(`[Overdue System] Marked ${result.modifiedCount} requests as overdue.`);
+    }
+  } catch (error) {
+    console.error('[Overdue System Error]', error);
+  }
+};
+
+// Facility auto-release daemon (runs every 1 minute)
+const autoReleaseFacilities = async () => {
+  try {
+    const FacilityRequest = require('./models/FacilityRequest');
+    const Sport = require('./models/Sport');
+    
+    // Find active/approved facility bookings that have expired
+    const expired = await FacilityRequest.find({
+      status: { $in: ['approved', 'active'] },
+      endTime: { $lt: new Date() }
+    });
+
+    for (const req of expired) {
+      req.status = 'completed';
+      req.releasedAt = new Date();
+      await req.save();
+
+      const sport = await Sport.findById(req.sportId);
+      if (sport) {
+        sport.usedFacilities = Math.max(0, sport.usedFacilities - 1);
+        await sport.save();
+      }
+      
+      // Emit socket notification
+      const ioInstance = app.get('io');
+      if (ioInstance) {
+        ioInstance.emit('facility_auto_released', { requestId: req._id, sportId: req.sportId });
+      }
+    }
+    
+    if (expired.length > 0) {
+      console.log(`[Auto-Release System] Automatically released ${expired.length} expired facility sessions.`);
+    }
+  } catch (err) {
+    console.error('[Auto Release Error]', err);
+  }
+};
+
+// Start periodic jobs
+setTimeout(() => {
+  checkOverdueReturns();
+  autoReleaseFacilities();
+  setInterval(checkOverdueReturns, 60 * 60 * 1000);
+  setInterval(autoReleaseFacilities, 60 * 1000);
+}, 10000);
 
 // 404
 app.use('*', (req, res) => {

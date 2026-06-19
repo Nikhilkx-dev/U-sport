@@ -51,23 +51,7 @@ export default function Register() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Role toggle */}
-            <div className="flex rounded-xl overflow-hidden border border-slate-700 p-1 gap-1 bg-slate-800/50">
-              {['student', 'faculty'].map(r => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setForm({ ...form, role: r })}
-                  className={`flex-1 py-2 text-sm font-semibold rounded-lg capitalize transition-all duration-200 ${
-                    form.role === r
-                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  {r === 'student' ? '🎓' : '👨‍🏫'} {r}
-                </button>
-              ))}
-            </div>
+
 
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">Full Name</label>
@@ -96,13 +80,11 @@ export default function Register() {
               </select>
             </div>
 
-            {form.role === 'student' && (
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Roll Number</label>
-                <input type="text" className="input-field" placeholder="e.g. 2110992234" value={form.rollNumber}
-                  onChange={e => setForm({ ...form, rollNumber: e.target.value })} required />
-              </div>
-            )}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Roll Number</label>
+              <input type="text" className="input-field" placeholder="e.g. 2110992234" value={form.rollNumber}
+                onChange={e => setForm({ ...form, rollNumber: e.target.value })} required />
+            </div>
 
             <button type="submit" className="btn-primary w-full mt-2" disabled={loading}>
               {loading ? (

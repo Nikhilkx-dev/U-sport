@@ -5,10 +5,10 @@ const { protect } = require('../middleware/authMiddleware');
 const { authorize } = require('../middleware/roleMiddleware');
 
 router.get('/', protect, getSports);
-router.get('/analytics', protect, authorize('faculty'), getAnalytics);
+router.get('/analytics', protect, authorize('admin', 'faculty'), getAnalytics);
 router.get('/:id', protect, getSportById);
-router.post('/', protect, authorize('faculty'), createSport);
-router.put('/:id', protect, authorize('faculty'), updateSport);
-router.delete('/:id', protect, authorize('faculty'), deleteSport);
+router.post('/', protect, authorize('admin', 'faculty'), createSport);
+router.put('/:id', protect, authorize('admin', 'faculty'), updateSport);
+router.delete('/:id', protect, authorize('admin', 'faculty'), deleteSport);
 
 module.exports = router;

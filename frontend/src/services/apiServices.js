@@ -48,3 +48,15 @@ export const chatService = {
   send: (message, sessionId) => api.post('/chat', { message, sessionId }),
   getHistory: (sessionId) => api.get('/chat/history', { params: { sessionId } }),
 };
+
+// ─── Return Requests ──────────────────────────────────────────────────
+export const returnService = {
+  create: (data) => api.post('/returns', data),
+  getMyReturns: () => api.get('/returns/my-returns'),
+  getAll: (status) => api.get('/returns', { params: status ? { status } : {} }),
+  approve: (id, data) => api.put(`/returns/approve/${id}`, data),
+  reject: (id, reason) => api.put(`/returns/reject/${id}`, { reason }),
+  getStats: () => api.get('/returns/stats'),
+  getIssuedItems: () => api.get('/returns/issued'),
+  getAuditLogs: () => api.get('/returns/audit-logs'),
+};

@@ -27,7 +27,7 @@ const facilityRequestSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'approved', 'rejected', 'released'],
+    enum: ['pending', 'approved', 'active', 'pending_release', 'released', 'completed', 'overdue', 'cancelled', 'rejected'],
     default: 'pending'
   },
   approvedBy: {
@@ -37,6 +37,31 @@ const facilityRequestSchema = new mongoose.Schema({
   },
   rejectionReason: {
     type: String,
+    default: null
+  },
+  releasedAt: { 
+    type: Date, 
+    default: null 
+  },
+  releaseRequestedAt: { 
+    type: Date, 
+    default: null 
+  },
+  releaseRemarks: { 
+    type: String, 
+    default: '' 
+  },
+  penaltyFine: { 
+    type: Number, 
+    default: 0 
+  },
+  isOverstay: { 
+    type: Boolean, 
+    default: false 
+  },
+  releaseApprovedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
     default: null
   }
 }, {

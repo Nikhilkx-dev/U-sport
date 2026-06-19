@@ -1,5 +1,6 @@
 const Equipment = require('../models/Equipment');
 const EquipmentRequest = require('../models/EquipmentRequest');
+const AuditLog = require('../models/AuditLog');
 
 // GET /api/equipment
 const getEquipment = async (req, res, next) => {
@@ -124,18 +125,36 @@ const approveEquipment = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Not enough equipment available.' });
     }
 
-    request.status = 'approved';
+    const previousAvailable = equipment.availableQuantity;
+    const previousIssued = equipment.issuedQuantity;
+
+    request.status = 'issued';
     request.approvedBy = req.user._id;
     request.issuedAt = new Date();
+    // Default expected return date is 7 days from now
+    request.expectedReturnDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     await request.save();
 
     equipment.availableQuantity -= request.quantity;
+    equipment.issuedQuantity += request.quantity;
     await equipment.save();
+
+    // Create Audit Log
+    await AuditLog.create({
+      action: 'issued',
+      equipmentId: equipment._id,
+      userId: request.studentId,
+      performedBy: req.user._id,
+      quantity: request.quantity,
+      previousState: { availableQuantity: previousAvailable, issuedQuantity: previousIssued },
+      newState: { availableQuantity: equipment.availableQuantity, issuedQuantity: equipment.issuedQuantity },
+      notes: `Approved and issued request: ${request._id}`
+    });
 
     const populated = await request.populate(['studentId', 'approvedBy']);
     req.app.get('io').emit('equipment_issued', populated);
 
-    res.json({ success: true, message: 'Equipment request approved.', data: populated });
+    res.json({ success: true, message: 'Equipment request approved and issued.', data: populated });
   } catch (error) {
     next(error);
   }
@@ -168,15 +187,37 @@ const returnEquipment = async (req, res, next) => {
   try {
     const request = await EquipmentRequest.findById(req.params.id).populate('equipmentId');
     if (!request) return res.status(404).json({ success: false, message: 'Request not found.' });
-    if (request.status !== 'approved') return res.status(400).json({ success: false, message: 'Only approved requests can be returned.' });
+    if (!['approved', 'issued', 'pending_return', 'overdue', 'partially_returned'].includes(request.status)) {
+      return res.status(400).json({ success: false, message: 'Only issued/approved/overdue requests can be returned.' });
+    }
+
+    const previousAvailable = request.equipmentId.availableQuantity;
+    const previousIssued = request.equipmentId.issuedQuantity;
+
+    const remainingToReturn = request.quantity - request.returnedQuantity;
 
     request.status = 'returned';
     request.returnedAt = new Date();
+    request.returnedQuantity = request.quantity;
+    request.condition = 'good';
     await request.save();
 
     const equipment = await Equipment.findById(request.equipmentId._id);
-    equipment.availableQuantity = Math.min(equipment.availableQuantity + request.quantity, equipment.totalQuantity);
+    equipment.availableQuantity = Math.min(equipment.availableQuantity + remainingToReturn, equipment.totalQuantity);
+    equipment.issuedQuantity = Math.max(0, equipment.issuedQuantity - remainingToReturn);
     await equipment.save();
+
+    // Create Audit Log
+    await AuditLog.create({
+      action: 'returned',
+      equipmentId: equipment._id,
+      userId: request.studentId,
+      performedBy: req.user._id,
+      quantity: remainingToReturn,
+      previousState: { availableQuantity: previousAvailable, issuedQuantity: previousIssued },
+      newState: { availableQuantity: equipment.availableQuantity, issuedQuantity: equipment.issuedQuantity },
+      notes: `Direct return marked by faculty/admin for request: ${request._id}`
+    });
 
     const populated = await request.populate(['studentId', 'approvedBy']);
     req.app.get('io').emit('equipment_returned', populated);

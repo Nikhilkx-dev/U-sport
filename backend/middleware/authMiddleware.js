@@ -20,6 +20,11 @@ const protect = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'User not found.' });
     }
 
+    // 🛑 Block unverified users from protected routes
+    if (!req.user.isEmailVerified) {
+      return res.status(403).json({ success: false, message: 'Email not verified. Please verify your email first.' });
+    }
+
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {

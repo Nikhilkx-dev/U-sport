@@ -5,9 +5,9 @@ const features = [
   { icon: '🏟️', title: 'Book Facilities', desc: 'Reserve cricket grounds, basketball courts, badminton halls and more in seconds.' },
   { icon: '🎯', title: 'Borrow Equipment', desc: 'Request sports equipment and track its status from request to return.' },
   { icon: '⚡', title: 'Real-Time Updates', desc: 'Instant notifications when your request is approved or rejected.' },
-  { icon: '📊', title: 'Faculty Analytics', desc: 'Comprehensive dashboards for managing all bookings and inventory.' },
+  { icon: '📊', title: 'Admin Analytics', desc: 'Comprehensive dashboards for managing all bookings and inventory.' },
   { icon: '🤖', title: 'Smart Chatbot', desc: 'AI assistant to help you find availability and guide the booking process.' },
-  { icon: '🔒', title: 'Secure Access', desc: 'Role-based authentication for students and faculty members.' },
+  { icon: '🔒', title: 'Secure Access', desc: 'Role-based authentication for students and administrators.' },
 ];
 
 const sports = [
@@ -27,7 +27,7 @@ const sports = [
 
 export default function Home() {
   const { user } = useAuth();
-  if (user) return <Navigate to={user.role === 'faculty' ? '/faculty' : '/dashboard'} replace />;
+  if (user) return <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />;
 
   return (
     <div className="min-h-screen gradient-bg">
@@ -65,15 +65,15 @@ export default function Home() {
           </h1>
 
           <p className="text-lg text-slate-400 max-w-2xl mx-auto mb-10 animate-fade-in">
-            The all-in-one platform for Chitkara University students and faculty to manage sports facility bookings, equipment loans, and real-time availability.
+            The all-in-one platform for Chitkara University students and administrators to manage sports facility bookings, equipment loans, and real-time availability.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-slide-up">
             <Link to="/register" className="btn-primary text-base px-8 py-3 w-full sm:w-auto">
               🎓 Student Sign Up
             </Link>
-            <Link to="/login" className="btn-secondary text-base px-8 py-3 w-full sm:w-auto">
-              👨‍🏫 Faculty Login
+            <Link to="/login?role=admin" className="btn-secondary text-base px-8 py-3 w-full sm:w-auto">
+              🛡️ Admin Login
             </Link>
           </div>
         </div>
@@ -119,7 +119,7 @@ export default function Home() {
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="font-display text-4xl font-bold text-white mb-3">Everything You Need</h2>
-            <p className="text-slate-400">Built for Chitkara students and faculty with modern web technology</p>
+            <p className="text-slate-400">Built for Chitkara students and administrators with modern web technology</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {features.map(f => (
@@ -143,7 +143,7 @@ export default function Home() {
             {[
               { step: '01', icon: '🔐', title: 'Register & Login', desc: 'Create your student account with roll number and department.' },
               { step: '02', icon: '🏟️', title: 'Browse & Book', desc: 'View available sports, check real-time availability, submit your request.' },
-              { step: '03', icon: '✅', title: 'Get Approved', desc: 'Faculty approves your request. Get instant notification on your dashboard.' },
+              { step: '03', icon: '✅', title: 'Get Approved', desc: 'Admin approves your request. Get instant notification on your dashboard.' },
             ].map(s => (
               <div key={s.step} className="flex flex-col items-center text-center">
                 <div className="w-16 h-16 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-3xl mb-4 relative z-10">

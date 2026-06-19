@@ -2,7 +2,14 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-export default function ProtectedRoute({ children, role }) {
+const ROLE_DASHBOARDS = {
+  student: '/dashboard',
+  faculty: '/faculty',
+  admin: '/admin',
+  vendor: '/vendor',
+};
+
+export default function ProtectedRoute({ children, roles }) {
   const { user, loading, initialized } = useAuth();
 
   // 🔄 show loader while checking auth
@@ -23,16 +30,11 @@ export default function ProtectedRoute({ children, role }) {
   }
 
   // ❌ wrong role → redirect to correct dashboard
-  if (role && user.role !== role) {
-    return (
-      <Navigate
-        to={user.role === 'faculty' ? '/faculty' : '/dashboard'}
-        replace
-      />
-    );
+  if (roles && !roles.includes(user.role)) {
+    const target = ROLE_DASHBOARDS[user.role] || '/dashboard';
+    return <Navigate to={target} replace />;
   }
 
   // ✅ allowed
   return children;
 }
-

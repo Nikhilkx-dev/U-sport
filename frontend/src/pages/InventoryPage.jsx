@@ -74,17 +74,17 @@ export default function InventoryPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
-          { label: 'Total Items', value: equipment.length, icon: '📦' },
-          { label: 'Total Stock', value: equipment.reduce((a, e) => a + e.totalQuantity, 0), icon: '🏷️' },
-          { label: 'Available', value: equipment.reduce((a, e) => a + e.availableQuantity, 0), icon: '✅' },
-          { label: 'Issued', value: equipment.reduce((a, e) => a + (e.totalQuantity - e.availableQuantity), 0), icon: '📤' },
+          { label: 'Total Unique Items', value: equipment.length, icon: '📦', color: 'text-indigo-400' },
+          { label: 'Total Stock Quantity', value: equipment.reduce((a, e) => a + (e.totalQuantity || 0), 0), icon: '🏷️', color: 'text-slate-300' },
+          { label: 'Available Units', value: equipment.reduce((a, e) => a + (e.availableQuantity || 0), 0), icon: '✅', color: 'text-emerald-400' },
+          { label: 'Issued / Damaged / Lost', value: `${equipment.reduce((a, e) => a + (e.issuedQuantity || 0), 0)} / ${equipment.reduce((a, e) => a + (e.damagedQuantity || 0), 0)} / ${equipment.reduce((a, e) => a + (e.lostQuantity || 0), 0)}`, icon: '📤', color: 'text-amber-400' },
         ].map(s => (
           <div key={s.label} className="stat-card">
             <div className="flex items-center justify-between">
               <span className="text-2xl">{s.icon}</span>
-              <span className="font-display text-3xl font-bold text-indigo-400">{s.value}</span>
+              <span className={`font-display text-2xl font-bold ${s.color}`}>{s.value}</span>
             </div>
-            <div className="text-sm text-slate-500">{s.label}</div>
+            <div className="text-sm text-slate-500 mt-1">{s.label}</div>
           </div>
         ))}
       </div>
@@ -101,12 +101,17 @@ export default function InventoryPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {equipment.map(item => {
-            const pct = item.totalQuantity > 0 ? Math.round((item.availableQuantity / item.totalQuantity) * 100) : 0;
+            const total = item.totalQuantity || 1; // avoid divide by zero
+            const availPct = Math.round(((item.availableQuantity || 0) / total) * 100);
+            const issuePct = Math.round(((item.issuedQuantity || 0) / total) * 100);
+            const dmgPct = Math.round(((item.damagedQuantity || 0) / total) * 100);
+            const lostPct = Math.round(((item.lostQuantity || 0) / total) * 100);
+
             return (
-              <div key={item._id} className="card p-5">
+              <div key={item._id} className="card p-5 hover:border-slate-700 transition-colors">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-xl">{item.icon || '🎯'}</div>
+                    <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-750 flex items-center justify-center text-xl">{item.icon || '🎯'}</div>
                     <div>
                       <div className="font-semibold text-white">{item.name}</div>
                       <div className="text-xs text-slate-500">{item.sport}</div>
@@ -119,16 +124,49 @@ export default function InventoryPage() {
                     </button>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs text-slate-400">
-                    <span>Available: <span className="text-emerald-400 font-semibold">{item.availableQuantity}</span></span>
-                    <span>Total: <span className="text-slate-300 font-semibold">{item.totalQuantity}</span></span>
+
+                <div className="space-y-4">
+                  {/* Multi-segment Progress Bar */}
+                  <div className="space-y-1">
+                    <div className="h-2.5 bg-slate-850 rounded-full overflow-hidden flex border border-slate-800">
+                      {item.availableQuantity > 0 && (
+                        <div className="h-full bg-emerald-500 animate-pulse-slow" style={{ width: `${availPct}%` }} title={`Available: ${item.availableQuantity} (${availPct}%)`} />
+                      )}
+                      {item.issuedQuantity > 0 && (
+                        <div className="h-full bg-indigo-500" style={{ width: `${issuePct}%` }} title={`Issued: ${item.issuedQuantity} (${issuePct}%)`} />
+                      )}
+                      {item.damagedQuantity > 0 && (
+                        <div className="h-full bg-amber-500" style={{ width: `${dmgPct}%` }} title={`Damaged: ${item.damagedQuantity} (${dmgPct}%)`} />
+                      )}
+                      {item.lostQuantity > 0 && (
+                        <div className="h-full bg-red-600" style={{ width: `${lostPct}%` }} title={`Lost: ${item.lostQuantity} (${lostPct}%)`} />
+                      )}
+                    </div>
+                    <div className="flex justify-between text-[10px] text-slate-500 font-medium">
+                      <span>{availPct}% in stock</span>
+                      <span>Total: {item.totalQuantity} units</span>
+                    </div>
                   </div>
-                  <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full ${pct > 60 ? 'bg-emerald-500' : pct > 30 ? 'bg-amber-500' : 'bg-red-500'}`}
-                      style={{ width: `${pct}%` }} />
+
+                  {/* Quantity Breakdown Grid */}
+                  <div className="grid grid-cols-4 gap-1 text-[10px] text-center border-t border-slate-850 pt-3">
+                    <div>
+                      <div className="text-slate-500 mb-0.5">Available</div>
+                      <div className="text-emerald-400 font-bold text-xs">{item.availableQuantity || 0}</div>
+                    </div>
+                    <div>
+                      <div className="text-slate-500 mb-0.5">Issued</div>
+                      <div className="text-indigo-400 font-bold text-xs">{item.issuedQuantity || 0}</div>
+                    </div>
+                    <div>
+                      <div className="text-slate-500 mb-0.5">Damaged</div>
+                      <div className="text-amber-400 font-bold text-xs">{item.damagedQuantity || 0}</div>
+                    </div>
+                    <div>
+                      <div className="text-slate-500 mb-0.5">Lost</div>
+                      <div className="text-red-400 font-bold text-xs">{item.lostQuantity || 0}</div>
+                    </div>
                   </div>
-                  <div className="text-xs text-slate-500 text-right">{pct}% in stock</div>
                 </div>
               </div>
             );

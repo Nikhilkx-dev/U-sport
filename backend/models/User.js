@@ -29,7 +29,7 @@ const userSchema = new mongoose.Schema({
 
   role: {
     type: String,
-    enum: ['student', 'faculty'],
+    enum: ['student', 'faculty', 'admin', 'vendor'],
     default: 'student'
   },
 
@@ -45,15 +45,52 @@ const userSchema = new mongoose.Schema({
     trim: true
   },
 
+  // Profile fields
+  phone: {
+    type: String,
+    trim: true,
+    default: null
+  },
+
+  course: {
+    type: String,
+    trim: true,
+    default: null
+  },
+
+  year: {
+    type: String,
+    trim: true,
+    default: null
+  },
+
+  bio: {
+    type: String,
+    trim: true,
+    maxlength: 300,
+    default: null
+  },
+
+  avatar: {
+    type: String,
+    default: null
+  },
+
+  // Email verification
+  isEmailVerified: {
+    type: Boolean,
+    default: false
+  },
+
   refreshToken: {
     type: String,
     default: null,
     select: false
   },
 
-  // ✅ OTP fields (NEW)
+  // OTP fields
   otp: {
-    type: Number,
+    type: String,
     default: null,
     select: false
   },
@@ -86,9 +123,9 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
 };
 
 
-// 🔢 Generate OTP method (optional but clean)
+// 🔢 Generate OTP method
 userSchema.methods.generateOTP = function () {
-  const otp = Math.floor(100000 + Math.random() * 900000);
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
   this.otp = otp;
   this.otpExpiry = Date.now() + 5 * 60 * 1000; // 5 minutes

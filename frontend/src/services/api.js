@@ -3,7 +3,7 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: 'http://localhost:5000/api', // ✅ FIXED
-  timeout: 10000,
+  timeout: 60000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -45,6 +45,15 @@ api.interceptors.response.use(
 
     // ✅ FIXED: removed TOKEN_EXPIRED dependency
     if (error.response?.status === 401 && !originalRequest._retry) {
+
+      // ✅ DO NOT intercept 401 for auth routes (login, verify, register)
+      const isAuthRoute = originalRequest.url?.includes('/auth/login') || 
+                          originalRequest.url?.includes('/auth/verify-otp') || 
+                          originalRequest.url?.includes('/auth/register');
+                          
+      if (isAuthRoute) {
+        return Promise.reject(error);
+      }
 
       if (isRefreshing) {
         return new Promise((resolve, reject) => {

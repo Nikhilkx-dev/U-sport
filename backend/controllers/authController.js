@@ -20,6 +20,17 @@ const generateTokens = (userId) => {
   return { accessToken, refreshToken };
 };
 
+// 🧹 Sanitize user object for response
+const sanitizeUser = (user) => {
+  const obj = user.toObject ? user.toObject() : { ...user };
+  delete obj.password;
+  delete obj.otp;
+  delete obj.otpExpiry;
+  delete obj.refreshToken;
+  delete obj.__v;
+  return obj;
+};
+
 
 // ================= REGISTER =================
 const register = async (req, res, next) => {
@@ -33,7 +44,11 @@ const register = async (req, res, next) => {
       });
     }
 
-    if (role === 'student' && !rollNumber) {
+    // Only allow student/faculty/vendor registration (admin via seed only)
+    const allowedRoles = ['student', 'faculty', 'vendor'];
+    const selectedRole = role && allowedRoles.includes(role) ? role : 'student';
+
+    if (selectedRole === 'student' && !rollNumber) {
       return res.status(400).json({
         success: false,
         message: 'Roll number is required for students.'
@@ -52,9 +67,10 @@ const register = async (req, res, next) => {
       name,
       email,
       password,
-      role: role || 'student',
+      role: selectedRole,
       rollNumber,
-      department
+      department,
+      isEmailVerified: false
     });
 
     // 🔢 Generate OTP
@@ -65,11 +81,12 @@ const register = async (req, res, next) => {
     await user.save({ validateBeforeSave: false });
 
     // 📧 Send Email
+    console.log(`\n\n[DEV] OTP for ${user.email}: ${otp}\n\n`);
     await sendOTPEmail(user.email, otp);
 
     res.status(201).json({
       success: true,
-      message: 'Registration successful! OTP sent to your email.',
+      message: 'Registration successful! OTP sent to your email for verification.',
     });
 
   } catch (error) {
@@ -99,7 +116,24 @@ const login = async (req, res, next) => {
       });
     }
 
-    // 🔢 Generate OTP
+    // 🛑 Check if email is verified
+    if (!user.isEmailVerified) {
+      // Send a new OTP for verification
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      user.otp = otp;
+      user.otpExpiry = Date.now() + 5 * 60 * 1000;
+      await user.save({ validateBeforeSave: false });
+      await sendOTPEmail(user.email, otp);
+
+      return res.status(403).json({
+        success: false,
+        message: 'Email not verified. A new OTP has been sent to your email.',
+        requiresVerification: true,
+        email: user.email
+      });
+    }
+
+    // 🔢 Generate OTP for login
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
     user.otp = otp;
@@ -108,13 +142,38 @@ const login = async (req, res, next) => {
     await user.save({ validateBeforeSave: false });
 
     // 📧 Send Email
+    // 🚧 DEV ONLY: Log OTP to console so you can see it without checking email
+    console.log(`\n\n[DEV] OTP for ${user.email}: ${otp}\n\n`);
     await sendOTPEmail(user.email, otp);
 
-    res.json({
+    res.status(200).json({
       success: true,
-      message: 'OTP sent to your email.'
+      message: 'OTP sent successfully to your email.'
     });
 
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+// ================= RESEND OTP =================
+const resendOtp = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ success: false, message: 'Email is required.' });
+
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.otp = otp;
+    user.otpExpiry = Date.now() + 5 * 60 * 1000;
+    await user.save({ validateBeforeSave: false });
+
+    console.log(`\n\n[DEV] OTP for ${user.email}: ${otp}\n\n`);
+    await sendOTPEmail(user.email, otp);
+    res.status(200).json({ success: true, message: 'A new OTP has been sent to your email.' });
   } catch (error) {
     next(error);
   }
@@ -136,19 +195,37 @@ const verifyOtp = async (req, res, next) => {
     const user = await User.findOne({ email })
       .select('+otp +otpExpiry +refreshToken');
 
-    if (!user || String(user.otp) !== String(otp)) {
+    // 🛑 Check if user exists and has an OTP set in DB
+    if (!user || !user.otp) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid OTP'
+        message: 'No OTP found for this user. Please request a new one.'
       });
     }
 
-    if (user.otpExpiry < Date.now()) {
-      return res.status(400).json({
+    // 🛑 Strict OTP match check
+    if (String(user.otp) !== String(otp)) {
+      return res.status(401).json({
         success: false,
-        message: 'OTP expired'
+        message: 'Invalid OTP code.'
       });
     }
+
+    // 🛑 Check expiry securely
+    if (!user.otpExpiry || new Date() > user.otpExpiry) {
+      // Clear expired OTP immediately to prevent replay attempts
+      user.otp = undefined;
+      user.otpExpiry = undefined;
+      await user.save({ validateBeforeSave: false });
+
+      return res.status(401).json({
+        success: false,
+        message: 'OTP has expired. Please request a new one.'
+      });
+    }
+
+    // ✅ Mark email as verified
+    user.isEmailVerified = true;
 
     // clear OTP
     user.otp = undefined;
@@ -165,7 +242,7 @@ const verifyOtp = async (req, res, next) => {
       data: {
         accessToken,
         refreshToken,
-        user
+        user: sanitizeUser(user)
       }
     });
 
@@ -181,6 +258,39 @@ const getProfile = async (req, res) => {
     success: true,
     data: req.user
   });
+};
+
+
+// ================= UPDATE PROFILE =================
+const updateProfile = async (req, res, next) => {
+  try {
+    const allowedFields = ['name', 'phone', 'course', 'year', 'bio', 'department', 'avatar'];
+    const updates = {};
+
+    allowedFields.forEach(field => {
+      if (req.body[field] !== undefined) {
+        updates[field] = req.body[field];
+      }
+    });
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      updates,
+      { new: true, runValidators: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully.',
+      data: user
+    });
+  } catch (error) {
+    next(error);
+  }
 };
 
 
@@ -247,13 +357,14 @@ const logout = async (req, res, next) => {
 };
 
 
-// 🔥 FINAL EXPORT (VERY IMPORTANT)
+// 🔥 FINAL EXPORT
 module.exports = {
   register,
   login,
   verifyOtp,
+  resendOtp,
   getProfile,
+  updateProfile,
   refreshToken,
   logout
 };
-

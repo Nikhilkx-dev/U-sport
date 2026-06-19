@@ -8,15 +8,28 @@ const studentNav = [
   { to: '/sports', label: 'Sports', icon: '🏟️' },
   { to: '/equipment', label: 'Equipment', icon: '🎯' },
   { to: '/my-requests', label: 'My Requests', icon: '📋' },
+  { to: '/profile', label: 'Profile', icon: '👤' },
 ];
 
-const facultyNav = [
-  { to: '/faculty', label: 'Overview', icon: '🏠', end: true },
-  { to: '/faculty/facility-requests', label: 'Facility Requests', icon: '📋' },
-  { to: '/faculty/equipment-requests', label: 'Equipment Requests', icon: '🎯' },
-  { to: '/faculty/inventory', label: 'Inventory', icon: '📦' },
-  { to: '/faculty/analytics', label: 'Analytics', icon: '📊' },
+const adminNav = [
+  { to: '/admin', label: 'Dashboard', icon: '🏠', end: true },
+  { to: '/admin/facility-requests', label: 'Facility Requests', icon: '📋' },
+  { to: '/admin/equipment-requests', label: 'Equipment Requests', icon: '🎯' },
+  { to: '/admin/returns', label: 'Returns Management', icon: '↩️' },
+  { to: '/admin/facility-releases', label: 'Facility Releases', icon: '🔓' },
+  { to: '/admin/issued-items', label: 'Issued Items', icon: '📤' },
+  { to: '/admin/inventory', label: 'Inventory', icon: '📦' },
+  { to: '/admin/audit-logs', label: 'Audit Logs', icon: '📜' },
+  { to: '/admin/users', label: 'User Management', icon: '👥' },
+  { to: '/admin/sports', label: 'Sports Management', icon: '🏟️' },
+  { to: '/admin/analytics', label: 'Analytics', icon: '📊' },
+  { to: '/profile', label: 'Profile', icon: '👤' },
 ];
+
+const ROLE_CONFIG = {
+  student: { nav: studentNav, label: '🎓 Student', color: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30' },
+  admin: { nav: adminNav, label: '🛡️ Admin', color: 'bg-red-500/20 text-red-300 border-red-500/30' },
+};
 
 export default function DashboardLayout() {
   const { user, logout, loading } = useAuth();
@@ -35,11 +48,12 @@ export default function DashboardLayout() {
     );
   }
 
-  const navItems = user.role === 'faculty' ? facultyNav : studentNav;
+  const roleConfig = ROLE_CONFIG[user.role] || ROLE_CONFIG.student;
+  const navItems = roleConfig.nav;
 
   const handleLogout = async () => {
     await logout();
-    navigate('/login', { replace: true }); // ✅ better UX
+    navigate('/login', { replace: true });
   };
 
   return (
@@ -145,13 +159,9 @@ export default function DashboardLayout() {
 
           {/* Role badge */}
           <div className="flex items-center gap-2">
-            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
-              user.role === 'faculty'
-                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
-            }`}>
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${roleConfig.color}`}>
               <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
-              {user.role === 'faculty' ? '👨‍🏫 Faculty' : '🎓 Student'}
+              {roleConfig.label}
             </span>
           </div>
         </header>
@@ -165,4 +175,3 @@ export default function DashboardLayout() {
     </div>
   );
 }
-

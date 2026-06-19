@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useSocket } from '../hooks/useSocket';
 import { useToast } from '../components/Toast';
@@ -8,6 +9,7 @@ const fmt = (dt) => dt ? new Date(dt).toLocaleString('en-IN', { dateStyle: 'medi
 
 export default function EquipmentRequestsPage() {
   const addToast = useToast();
+  const navigate = useNavigate();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('pending');
@@ -35,6 +37,8 @@ export default function EquipmentRequestsPage() {
     equipment_issued: () => fetchRequests(),
     equipment_rejected: () => fetchRequests(),
     equipment_returned: () => fetchRequests(),
+    return_approved: () => fetchRequests(),
+    return_rejected: () => fetchRequests(),
   });
 
   const handleApprove = async (id) => {
@@ -76,13 +80,24 @@ export default function EquipmentRequestsPage() {
   const counts = {
     all: requests.length,
     pending: requests.filter(r => r.status === 'pending').length,
-    approved: requests.filter(r => r.status === 'approved').length,
-    rejected: requests.filter(r => r.status === 'rejected').length,
+    issued: requests.filter(r => r.status === 'issued' || r.status === 'approved').length,
+    pending_return: requests.filter(r => r.status === 'pending_return').length,
     returned: requests.filter(r => r.status === 'returned').length,
+    partially_returned: requests.filter(r => r.status === 'partially_returned').length,
+    overdue: requests.filter(r => r.status === 'overdue' || (['issued', 'pending_return', 'partially_returned'].includes(r.status) && r.expectedReturnDate && new Date(r.expectedReturnDate) < new Date())).length,
+    rejected: requests.filter(r => r.status === 'rejected').length,
   };
 
   const filtered = requests
-    .filter(r => statusFilter === 'all' ? true : r.status === statusFilter)
+    .filter(r => {
+      if (statusFilter === 'all') return true;
+      if (statusFilter === 'issued') return r.status === 'issued' || r.status === 'approved';
+      if (statusFilter === 'overdue') {
+        const isOverdue = r.status === 'overdue' || (['issued', 'pending_return', 'partially_returned'].includes(r.status) && r.expectedReturnDate && new Date(r.expectedReturnDate) < new Date());
+        return isOverdue;
+      }
+      return r.status === statusFilter;
+    })
     .filter(r => search
       ? r.studentId?.name?.toLowerCase().includes(search.toLowerCase()) ||
         r.studentId?.rollNumber?.toLowerCase().includes(search.toLowerCase()) ||
@@ -100,10 +115,10 @@ export default function EquipmentRequestsPage() {
       {/* Count cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
         {[
-          { key: 'pending', label: 'Pending', icon: '⏳', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
-          { key: 'approved', label: 'Issued', icon: '📤', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
+          { key: 'pending', label: 'Pending Requests', icon: '⏳', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
+          { key: 'issued', label: 'Active Issued', icon: '📤', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
+          { key: 'overdue', label: 'Overdue Returns', icon: '⚠️', color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20' },
           { key: 'returned', label: 'Returned', icon: '↩️', color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
-          { key: 'rejected', label: 'Rejected', icon: '❌', color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20' },
         ].map(c => (
           <button key={c.key} onClick={() => setStatusFilter(c.key)}
             className={`p-4 rounded-2xl border text-left transition-all duration-200 ${c.bg} ${statusFilter === c.key ? 'ring-2 ring-indigo-500/50' : 'hover:brightness-110'}`}>
@@ -128,12 +143,12 @@ export default function EquipmentRequestsPage() {
           />
         </div>
         <div className="flex gap-2 flex-wrap">
-          {['all', 'pending', 'approved', 'rejected', 'returned'].map(s => (
+          {['all', 'pending', 'issued', 'pending_return', 'overdue', 'partially_returned', 'returned', 'rejected'].map(s => (
             <button key={s} onClick={() => setStatusFilter(s)}
               className={`px-3 py-2 rounded-xl text-xs font-semibold capitalize transition-all duration-200 ${
                 statusFilter === s ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700 hover:text-slate-200'
               }`}>
-              {s} {s !== 'all' && <span className="ml-1 opacity-70">({counts[s]})</span>}
+              {s.replace('_', ' ')} {s !== 'all' && <span className="ml-1 opacity-70">({counts[s] || 0})</span>}
             </button>
           ))}
         </div>
@@ -179,44 +194,58 @@ export default function EquipmentRequestsPage() {
                 </div>
 
                 {/* Timestamps */}
-                <div className="grid grid-cols-2 gap-4 text-xs">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
                   <div>
-                    <div className="text-slate-600 mb-0.5">Requested</div>
-                    <div className="text-slate-300">{fmt(req.createdAt)}</div>
+                    <div className="text-slate-500 mb-0.5">Requested</div>
+                    <div className="text-slate-350">{fmt(req.createdAt)}</div>
                   </div>
                   {req.issuedAt && (
                     <div>
-                      <div className="text-slate-600 mb-0.5">Issued</div>
-                      <div className="text-emerald-400">{fmt(req.issuedAt)}</div>
+                      <div className="text-slate-500 mb-0.5">Issued</div>
+                      <div className="text-emerald-450">{fmt(req.issuedAt)}</div>
+                    </div>
+                  )}
+                  {req.expectedReturnDate && (
+                    <div>
+                      <div className="text-slate-500 mb-0.5">Expected Due</div>
+                      <div className={new Date() > new Date(req.expectedReturnDate) && ['issued', 'pending_return', 'partially_returned', 'overdue'].includes(req.status) ? 'text-rose-400 font-bold' : 'text-slate-350'}>
+                        {fmt(req.expectedReturnDate)}
+                      </div>
                     </div>
                   )}
                   {req.returnedAt && (
                     <div>
-                      <div className="text-slate-600 mb-0.5">Returned</div>
-                      <div className="text-blue-400">{fmt(req.returnedAt)}</div>
+                      <div className="text-slate-500 mb-0.5">Returned</div>
+                      <div className="text-blue-450">{fmt(req.returnedAt)}</div>
                     </div>
                   )}
                 </div>
 
                 {/* Status + actions */}
                 <div className="flex items-center gap-3 flex-shrink-0">
-                  <StatusBadge status={req.status} />
+                  <StatusBadge status={req.status === 'approved' ? 'issued' : req.status} />
                   {req.status === 'pending' && (
                     <div className="flex gap-2">
                       <button onClick={() => handleApprove(req._id)} disabled={acting === req._id + 'approve'}
-                        className="btn-success text-xs py-1.5 px-3">
+                        className="btn-success text-xs py-1.5 px-3 rounded-lg">
                         {acting === req._id + 'approve' ? '...' : '✅ Issue'}
                       </button>
                       <button onClick={() => { setRejectModal(req._id); setRejectReason(''); }}
-                        className="btn-danger text-xs py-1.5 px-3">
+                        className="btn-danger text-xs py-1.5 px-3 rounded-lg">
                         ❌ Reject
                       </button>
                     </div>
                   )}
-                  {req.status === 'approved' && (
+                  {['approved', 'issued', 'overdue', 'partially_returned'].includes(req.status) && (
                     <button onClick={() => handleReturn(req._id)} disabled={acting === req._id + 'return'}
-                      className="btn-warning text-xs py-1.5 px-3">
-                      {acting === req._id + 'return' ? '...' : '↩️ Mark Returned'}
+                      className="btn-warning text-xs py-1.5 px-3 rounded-lg">
+                      {acting === req._id + 'return' ? '...' : '↩️ Quick Return'}
+                    </button>
+                  )}
+                  {req.status === 'pending_return' && (
+                    <button onClick={() => navigate('/admin/returns')}
+                      className="btn-primary text-xs py-1.5 px-3 rounded-lg">
+                      🔍 Review Return
                     </button>
                   )}
                 </div>

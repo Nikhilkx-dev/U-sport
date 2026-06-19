@@ -31,30 +31,45 @@ export const AuthProvider = ({ children }) => {
 
   // 🔐 STEP 1: LOGIN → send OTP
   const login = async (email, password) => {
-    await api.post("/auth/login", { email, password });
+    const res = await api.post("/auth/login", { email, password });
+    return res.data;
   };
 
   // 🔐 STEP 2: VERIFY OTP → get tokens + user
   const verifyOtp = async (email, otp) => {
     const res = await api.post("/auth/verify-otp", { email, otp });
 
-    const { accessToken, refreshToken, user } = res.data.data;
+    const { accessToken, refreshToken, user: userData } = res.data.data;
 
     localStorage.setItem("accessToken", accessToken);
     localStorage.setItem("refreshToken", refreshToken);
 
-    setUser(user);
+    setUser(userData);
 
-    return user;
+    // Return the user object directly for role-based redirects
+    return userData;
   };
 
-  // � Register new user
+  // 🔐 STEP 3: RESEND OTP
+  const resendOtp = async (email) => {
+    const res = await api.post("/auth/resend-otp", { email });
+    return res.data;
+  };
+
+  // 📝 Register new user
   const register = async (userData) => {
     const res = await api.post("/auth/register", userData);
     return res.data;
   };
 
-  // �🚪 Logout
+  // ✏️ Update profile
+  const updateProfile = async (profileData) => {
+    const res = await api.put("/auth/profile", profileData);
+    setUser(res.data.data);
+    return res.data;
+  };
+
+  // 🚪 Logout
   const logout = async () => {
     try {
       await api.post("/auth/logout");
@@ -69,7 +84,9 @@ export const AuthProvider = ({ children }) => {
         user,
         login,
         verifyOtp,
+        resendOtp,
         register,
+        updateProfile,
         logout,
         loading,
         initialized,
@@ -81,4 +98,3 @@ export const AuthProvider = ({ children }) => {
 };
 
 export const useAuth = () => useContext(AuthContext);
-

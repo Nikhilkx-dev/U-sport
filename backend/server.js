@@ -21,21 +21,29 @@ const adminRoutes = require('./routes/adminRoutes');
 const app = express();
 const server = http.createServer(app);
 
+const allowedOrigins = [
+  'https://u-sport-beryl.vercel.app',
+  'https://u-sport-2xm1i9z00-devex1.vercel.app',
+];
+if (process.env.CLIENT_URL) allowedOrigins.push(process.env.CLIENT_URL);
+
+const corsOriginHandler = (origin, callback) => {
+  // Allow requests with no origin (like mobile apps or curl requests)
+  if (!origin) return callback(null, true);
+  
+  // Allow localhost on any port for development
+  if (origin.startsWith('http://localhost:')) return callback(null, true);
+  
+  // Allow Vercel domains and production URL
+  if (allowedOrigins.includes(origin)) return callback(null, true);
+  
+  return callback(new Error('Not allowed by CORS'));
+};
+
 // Socket.IO
 const io = new Server(server, {
   cors: {
-    origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) return callback(null, true);
-      
-      // Allow localhost on any port for development
-      if (origin.startsWith('http://localhost:')) return callback(null, true);
-      
-      // Allow production URL
-      if (process.env.CLIENT_URL && origin === process.env.CLIENT_URL) return callback(null, true);
-      
-      return callback(new Error('Not allowed by CORS'));
-    },
+    origin: corsOriginHandler,
     methods: ['GET', 'POST'],
     credentials: true
   }
@@ -50,18 +58,7 @@ connectDB();
 // Security middleware
 app.use(helmet());
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    // Allow localhost on any port for development
-    if (origin.startsWith('http://localhost:')) return callback(null, true);
-    
-    // Allow production URL
-    if (process.env.CLIENT_URL && origin === process.env.CLIENT_URL) return callback(null, true);
-    
-    return callback(new Error('Not allowed by CORS'));
-  },
+  origin: corsOriginHandler,
   credentials: true
 }));
 

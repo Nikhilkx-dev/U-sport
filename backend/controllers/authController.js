@@ -34,10 +34,12 @@ const sanitizeUser = (user) => {
 
 // ================= REGISTER =================
 const register = async (req, res, next) => {
+  console.log('[DEBUG] POST /api/auth/register - Incoming Body:', req.body);
   try {
     const { name, email, password, role, rollNumber, department } = req.body;
 
     if (!name || !email || !password || !department) {
+      console.log('[DEBUG] Validation failed: Missing required fields');
       return res.status(400).json({
         success: false,
         message: 'Please fill all required fields.'
@@ -49,21 +51,46 @@ const register = async (req, res, next) => {
     const selectedRole = role && allowedRoles.includes(role) ? role : 'student';
 
     if (selectedRole === 'student' && !rollNumber) {
+      console.log('[DEBUG] Validation failed: Missing rollNumber for student');
       return res.status(400).json({
         success: false,
         message: 'Roll number is required for students.'
       });
     }
 
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email already registered.'
-      });
+    let user = await User.findOne({ email });
+    if (user) {
+      if (user.isEmailVerified) {
+        console.log('[DEBUG] Registration failed: Email already registered and verified');
+        return res.status(400).json({
+          success: false,
+          message: 'Email already registered. Please login.'
+        });
+      } else {
+        console.log('[DEBUG] User exists but unverified. Updating details and resending OTP.');
+        user.name = name;
+        user.password = password; // triggers pre-save hash hook
+        user.role = selectedRole;
+        user.rollNumber = rollNumber;
+        user.department = department;
+        
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        user.otp = otp;
+        user.otpExpiry = Date.now() + 5 * 60 * 1000;
+        await user.save({ validateBeforeSave: false });
+
+        console.log(`\n\n[DEV] OTP for ${user.email}: ${otp}\n\n`);
+        await sendOTPEmail(user.email, otp);
+
+        return res.status(200).json({
+          success: true,
+          message: 'Registration updated! A new OTP has been sent to your email.',
+        });
+      }
     }
 
-    const user = await User.create({
+    console.log('[DEBUG] Creating new user record');
+    user = await User.create({
       name,
       email,
       password,
@@ -84,12 +111,14 @@ const register = async (req, res, next) => {
     console.log(`\n\n[DEV] OTP for ${user.email}: ${otp}\n\n`);
     await sendOTPEmail(user.email, otp);
 
+    console.log('[DEBUG] Registration successful, OTP sent.');
     res.status(201).json({
       success: true,
       message: 'Registration successful! OTP sent to your email for verification.',
     });
 
   } catch (error) {
+    console.error('[DEBUG] Registration Error:', error);
     next(error);
   }
 };

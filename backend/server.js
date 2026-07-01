@@ -33,6 +33,10 @@ const corsOriginHandler = (origin, callback) => {
   // Allow explicitly defined production URL
   if (process.env.CLIENT_URL && origin === process.env.CLIENT_URL) return callback(null, true);
   
+  // Allow ALL Vercel deployments (preview + production)
+  if (origin.endsWith('.vercel.app')) return callback(null, true);
+  
+  console.warn(`[CORS] Blocked origin: ${origin}`);
   return callback(new Error('Not allowed by CORS'));
 };
 
@@ -51,11 +55,16 @@ app.set('io', io);
 // Connect DB
 connectDB();
 
-// Security middleware
-app.use(helmet());
+// Security middleware — configured for cross-origin (Vercel ↔ Render)
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  crossOriginOpenerPolicy: { policy: 'unsafe-none' },
+}));
 app.use(cors({
   origin: corsOriginHandler,
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 // Rate limiting — relaxed in development to avoid blocking dev workflows

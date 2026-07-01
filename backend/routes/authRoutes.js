@@ -28,13 +28,6 @@ router.post('/verify-otp', verifyOtp);
 // Step 3: Resend OTP (if needed)
 router.post('/resend-otp', resendOtp);
 
-// 🚧 DEV ONLY TEMP ROUTE
-router.get('/update-admin-email', async (req, res) => {
-  const User = require('../models/User');
-  await User.updateOne({ email: 'admin@usport.edu' }, { $set: { email: 'nikhilkr20062@gmail.com' } });
-  res.send('Updated');
-});
-
 // 🔁 Token Refresh
 router.post('/refresh', refreshToken);
 

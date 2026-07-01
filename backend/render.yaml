@@ -21,7 +21,7 @@ services:
         value: 7d
       - key: CLIENT_URL
         sync: false
-      - key: RESEND_API_KEY
+      - key: EMAIL_USER
         sync: false
-      - key: EMAIL_FROM
+      - key: EMAIL_PASS
         sync: false

@@ -1,14 +1,20 @@
-const { Resend } = require('resend');
+const nodemailer = require("nodemailer");
 
-// We expect RESEND_API_KEY and EMAIL_FROM to be set in environment variables
-const resend = new Resend(process.env.RESEND_API_KEY);
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+  connectionTimeout: 10000, // 10 seconds timeout
+  greetingTimeout: 5000,
+  socketTimeout: 15000,
+});
 
 const sendOTPEmail = async (email, otp) => {
   try {
-    const fromEmail = process.env.EMAIL_FROM || 'onboarding@resend.dev';
-    
-    const data = await resend.emails.send({
-      from: `U-SPORT <${fromEmail}>`,
+    await transporter.sendMail({
+      from: `"U-SPORT" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: "Your OTP Code",
       html: `
@@ -17,16 +23,10 @@ const sendOTPEmail = async (email, otp) => {
         <p>Valid for 5 minutes</p>
       `,
     });
-
-    if (data.error) {
-      console.error(`[Email Error] Resend API error for ${email}:`, data.error.message);
-      return { success: false, error: data.error.message };
-    }
-
-    console.log(`[Email] OTP successfully sent to ${email} via Resend. ID: ${data.data.id}`);
+    console.log(`[Email] OTP successfully sent to ${email}`);
     return { success: true };
   } catch (error) {
-    console.error(`[Email Error] Exception while sending OTP to ${email}:`, error.message);
+    console.error(`[Email Error] Failed to send OTP to ${email}:`, error.message);
     return { success: false, error: error.message };
   }
 };

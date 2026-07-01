@@ -78,7 +78,14 @@ const register = async (req, res, next) => {
         await user.save();
 
         console.log(`\n\n[DEV] OTP for ${user.email}: ${otp}\n\n`);
-        await sendOTPEmail(user.email, otp);
+        const emailResult = await sendOTPEmail(user.email, otp);
+
+        if (!emailResult.success) {
+          return res.status(201).json({
+            success: true,
+            message: 'Account created successfully. Email delivery failed. Please resend OTP later.',
+          });
+        }
 
         return res.status(200).json({
           success: true,
@@ -104,7 +111,14 @@ const register = async (req, res, next) => {
 
     // 📧 Send Email
     console.log(`\n\n[DEV] OTP for ${user.email}: ${otp}\n\n`);
-    await sendOTPEmail(user.email, otp);
+    const emailResult = await sendOTPEmail(user.email, otp);
+
+    if (!emailResult.success) {
+      return res.status(201).json({
+        success: true,
+        message: 'Account created successfully. Email delivery failed. Please resend OTP later.',
+      });
+    }
 
     console.log('[DEBUG] Registration successful, OTP sent.');
     res.status(201).json({
@@ -145,7 +159,16 @@ const login = async (req, res, next) => {
       // Send a new OTP for verification
       const otp = user.generateOTP();
       await User.updateOne({ _id: user._id }, { otp: user.otp, otpExpiry: user.otpExpiry });
-      await sendOTPEmail(user.email, otp);
+      const emailResult = await sendOTPEmail(user.email, otp);
+
+      if (!emailResult.success) {
+        return res.status(403).json({
+          success: false,
+          message: 'Email not verified. Email delivery failed. Please try resending OTP later.',
+          requiresVerification: true,
+          email: user.email
+        });
+      }
 
       return res.status(403).json({
         success: false,
@@ -163,7 +186,14 @@ const login = async (req, res, next) => {
     // 📧 Send Email
     // 🚧 DEV ONLY: Log OTP to console so you can see it without checking email
     console.log(`\n\n[DEV] OTP for ${user.email}: ${otp}\n\n`);
-    await sendOTPEmail(user.email, otp);
+    const emailResult = await sendOTPEmail(user.email, otp);
+
+    if (!emailResult.success) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send login OTP email. Please try again later.'
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -189,7 +219,12 @@ const resendOtp = async (req, res, next) => {
     await User.updateOne({ _id: user._id }, { otp: user.otp, otpExpiry: user.otpExpiry });
 
     console.log(`\n\n[DEV] OTP for ${user.email}: ${otp}\n\n`);
-    await sendOTPEmail(user.email, otp);
+    const emailResult = await sendOTPEmail(user.email, otp);
+    
+    if (!emailResult.success) {
+      return res.status(500).json({ success: false, message: 'Failed to send OTP email. Please try again later.' });
+    }
+
     res.status(200).json({ success: true, message: 'A new OTP has been sent to your email.' });
   } catch (error) {
     next(error);

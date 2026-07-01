@@ -24,9 +24,10 @@ const sendOTPEmail = async (email, otp) => {
       `,
     });
     console.log(`[Email] OTP successfully sent to ${email}`);
+    return { success: true };
   } catch (error) {
     console.error(`[Email Error] Failed to send OTP to ${email}:`, error.message);
-    throw new Error('Failed to send OTP email. Please check your email address or try again later.');
+    return { success: false, error: error.message };
   }
 };
 

@@ -5,6 +5,8 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const mongoSanitize = require('express-mongo-sanitize');
+const xss = require('xss-clean');
 const connectDB = require('./config/db');
 const errorMiddleware = require('./middleware/errorMiddleware');
 const socketServer = require('./sockets/socketServer');
@@ -28,9 +30,6 @@ const corsOriginHandler = (origin, callback) => {
   // Allow localhost on any port for development
   if (origin.startsWith('http://localhost:')) return callback(null, true);
   
-  // Allow ANY Vercel preview deployment
-  if (origin.endsWith('.vercel.app')) return callback(null, true);
-
   // Allow explicitly defined production URL
   if (process.env.CLIENT_URL && origin === process.env.CLIENT_URL) return callback(null, true);
   
@@ -71,12 +70,20 @@ const limiter = rateLimit({
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isDev ? 5000 : 200,  // generous limit — token refresh + login + OTP all share this
+  max: isDev ? 5000 : 50,  // Stricter limit for login/register
   skip: () => isDev,
   message: { success: false, message: 'Too many auth attempts. Please wait 15 minutes.' }
 });
 
+const refreshLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 5000 : 300, // Generous limit for token refresh
+  skip: () => isDev,
+  message: { success: false, message: 'Too many refresh requests. Please wait 15 minutes.' }
+});
+
 app.use('/api/', limiter);
+app.use('/api/auth/refresh', refreshLimiter);
 app.use('/api/auth/', authLimiter);
 
 // OTP-specific rate limiter (stricter, but still relaxed in dev)
@@ -92,6 +99,12 @@ app.use('/api/auth/resend-otp', otpLimiter);
 // Body parser
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Data sanitization against NoSQL query injection
+app.use(mongoSanitize());
+
+// Data sanitization against XSS
+app.use(xss());
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -74,10 +74,8 @@ const register = async (req, res, next) => {
         user.rollNumber = rollNumber;
         user.department = department;
         
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        user.otp = otp;
-        user.otpExpiry = Date.now() + 5 * 60 * 1000;
-        await user.save({ validateBeforeSave: false });
+        const otp = user.generateOTP();
+        await user.save();
 
         console.log(`\n\n[DEV] OTP for ${user.email}: ${otp}\n\n`);
         await sendOTPEmail(user.email, otp);
@@ -101,11 +99,8 @@ const register = async (req, res, next) => {
     });
 
     // 🔢 Generate OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-
-    user.otp = otp;
-    user.otpExpiry = Date.now() + 5 * 60 * 1000;
-    await user.save({ validateBeforeSave: false });
+    const otp = user.generateOTP();
+    await user.save();
 
     // 📧 Send Email
     console.log(`\n\n[DEV] OTP for ${user.email}: ${otp}\n\n`);
@@ -148,10 +143,8 @@ const login = async (req, res, next) => {
     // 🛑 Check if email is verified
     if (!user.isEmailVerified) {
       // Send a new OTP for verification
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      user.otp = otp;
-      user.otpExpiry = Date.now() + 5 * 60 * 1000;
-      await user.save({ validateBeforeSave: false });
+      const otp = user.generateOTP();
+      await User.updateOne({ _id: user._id }, { otp: user.otp, otpExpiry: user.otpExpiry });
       await sendOTPEmail(user.email, otp);
 
       return res.status(403).json({
@@ -163,12 +156,9 @@ const login = async (req, res, next) => {
     }
 
     // 🔢 Generate OTP for login
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = user.generateOTP();
 
-    user.otp = otp;
-    user.otpExpiry = Date.now() + 5 * 60 * 1000;
-
-    await user.save({ validateBeforeSave: false });
+    await User.updateOne({ _id: user._id }, { otp: user.otp, otpExpiry: user.otpExpiry });
 
     // 📧 Send Email
     // 🚧 DEV ONLY: Log OTP to console so you can see it without checking email
@@ -195,10 +185,8 @@ const resendOtp = async (req, res, next) => {
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    user.otp = otp;
-    user.otpExpiry = Date.now() + 5 * 60 * 1000;
-    await user.save({ validateBeforeSave: false });
+    const otp = user.generateOTP();
+    await User.updateOne({ _id: user._id }, { otp: user.otp, otpExpiry: user.otpExpiry });
 
     console.log(`\n\n[DEV] OTP for ${user.email}: ${otp}\n\n`);
     await sendOTPEmail(user.email, otp);
@@ -243,9 +231,10 @@ const verifyOtp = async (req, res, next) => {
     // 🛑 Check expiry securely
     if (!user.otpExpiry || new Date() > user.otpExpiry) {
       // Clear expired OTP immediately to prevent replay attempts
-      user.otp = undefined;
-      user.otpExpiry = undefined;
-      await user.save({ validateBeforeSave: false });
+      await User.updateOne(
+        { _id: user._id },
+        { $unset: { otp: 1, otpExpiry: 1 } }
+      );
 
       return res.status(401).json({
         success: false,
@@ -254,16 +243,15 @@ const verifyOtp = async (req, res, next) => {
     }
 
     // ✅ Mark email as verified
-    user.isEmailVerified = true;
-
-    // clear OTP
-    user.otp = undefined;
-    user.otpExpiry = undefined;
-
     const { accessToken, refreshToken } = generateTokens(user._id);
 
-    user.refreshToken = refreshToken;
-    await user.save({ validateBeforeSave: false });
+    await User.updateOne(
+      { _id: user._id },
+      { 
+        $set: { isEmailVerified: true, refreshToken }, 
+        $unset: { otp: 1, otpExpiry: 1 } 
+      }
+    );
 
     res.json({
       success: true,
@@ -348,8 +336,7 @@ const refreshToken = async (req, res, next) => {
 
     const { accessToken, refreshToken: newRefreshToken } = generateTokens(user._id);
 
-    user.refreshToken = newRefreshToken;
-    await user.save({ validateBeforeSave: false });
+    await User.updateOne({ _id: user._id }, { refreshToken: newRefreshToken });
 
     res.json({
       success: true,
@@ -371,8 +358,7 @@ const logout = async (req, res, next) => {
     const user = await User.findById(req.user._id);
 
     if (user) {
-      user.refreshToken = null;
-      await user.save({ validateBeforeSave: false });
+      await User.updateOne({ _id: user._id }, { refreshToken: null });
     }
 
     res.json({

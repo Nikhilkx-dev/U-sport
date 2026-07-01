@@ -21,7 +21,9 @@ export default function Register() {
         state: { email: form.email }
       });
     } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed.');
+      console.error('Registration Error:', err);
+      const errorMsg = err.response?.data?.message || err.message || 'Registration failed due to network or server error.';
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }

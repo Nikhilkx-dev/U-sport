@@ -2,7 +2,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'https://usport-backend.onrender.com/api',
+  baseURL: import.meta.env.MODE === 'development' ? '/api' : (import.meta.env.VITE_API_URL || 'https://usport-backend.onrender.com/api'),
   timeout: 60000,
   headers: {
     'Content-Type': 'application/json',
@@ -72,7 +72,7 @@ api.interceptors.response.use(
       const refreshToken = localStorage.getItem('refreshToken');
 
       try {
-        const baseURL = import.meta.env.VITE_API_URL || 'https://usport-backend.onrender.com/api';
+        const baseURL = import.meta.env.MODE === 'development' ? '/api' : (import.meta.env.VITE_API_URL || 'https://usport-backend.onrender.com/api');
         const res = await axios.post(
           `${baseURL}/auth/refresh`, // ✅ direct call (avoid loop)
           { refreshToken }

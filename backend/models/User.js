@@ -1,6 +1,7 @@
 
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 const userSchema = new mongoose.Schema({
   name: {
@@ -125,7 +126,7 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
 
 // 🔢 Generate OTP method
 userSchema.methods.generateOTP = function () {
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const otp = crypto.randomInt(100000, 1000000).toString();
 
   this.otp = otp;
   this.otpExpiry = Date.now() + 5 * 60 * 1000; // 5 minutes

@@ -72,6 +72,8 @@ const equipmentRequestSchema = new mongoose.Schema({
   timestamps: true
 });
 
+equipmentRequestSchema.index({ status: 1, expectedReturnDate: 1 });
+
 // Virtual: remaining quantity to return
 equipmentRequestSchema.virtual('remainingQuantity').get(function () {
   return Math.max(0, this.quantity - (this.returnedQuantity || 0));

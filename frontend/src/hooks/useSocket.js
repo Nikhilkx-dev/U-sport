@@ -19,7 +19,10 @@ export const useSocket = (events = {}) => {
     if (!user) return;
 
     if (!socketInstance) {
-      socketInstance = io('/', {
+      const backendUrl = import.meta.env.VITE_API_URL 
+        ? import.meta.env.VITE_API_URL.replace('/api', '') 
+        : 'https://usport-backend.onrender.com';
+      socketInstance = io(backendUrl, {
         withCredentials: true,
         transports: ['websocket', 'polling'],
       });

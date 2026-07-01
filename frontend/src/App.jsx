@@ -1,5 +1,6 @@
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './components/Toast';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -21,17 +22,17 @@ import SportsPage from './pages/SportsPage';
 import EquipmentPage from './pages/EquipmentPage';
 import MyRequests from './pages/MyRequests';
 
-// Admin pages (consolidated)
-import AdminDashboard from './pages/AdminDashboard';
-import AdminUsersPage from './pages/AdminUsersPage';
-import FacilityRequestsPage from './pages/FacilityRequestsPage';
-import EquipmentRequestsPage from './pages/EquipmentRequestsPage';
-import InventoryPage from './pages/InventoryPage';
-import AnalyticsPage from './pages/AnalyticsPage';
-import ReturnsManagementPage from './pages/ReturnsManagementPage';
-import FacilityReleasesPage from './pages/FacilityReleasesPage';
-import IssuedItemsPage from './pages/IssuedItemsPage';
-import AuditLogsPage from './pages/AuditLogsPage';
+// Admin pages (lazy-loaded for optimization)
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage'));
+const FacilityRequestsPage = lazy(() => import('./pages/FacilityRequestsPage'));
+const EquipmentRequestsPage = lazy(() => import('./pages/EquipmentRequestsPage'));
+const InventoryPage = lazy(() => import('./pages/InventoryPage'));
+const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
+const ReturnsManagementPage = lazy(() => import('./pages/ReturnsManagementPage'));
+const FacilityReleasesPage = lazy(() => import('./pages/FacilityReleasesPage'));
+const IssuedItemsPage = lazy(() => import('./pages/IssuedItemsPage'));
+const AuditLogsPage = lazy(() => import('./pages/AuditLogsPage'));
 
 
 
@@ -70,8 +71,19 @@ export default function App() {
               <Route path="/my-requests" element={<MyRequests />} />
             </Route>
 
-            {/* Admin dashboard routes (consolidated all management here) */}
-            <Route element={<ProtectedRoute roles={['admin']}><DashboardLayout /></ProtectedRoute>}>
+            {/* Admin dashboard routes (consolidated all management here with Suspense boundary) */}
+            <Route element={
+              <ProtectedRoute roles={['admin']}>
+                <Suspense fallback={
+                  <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3">
+                    <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-indigo-500 border-r-2 border-transparent"></div>
+                    <span className="text-slate-400 text-sm font-medium">Loading workspace...</span>
+                  </div>
+                }>
+                  <DashboardLayout />
+                </Suspense>
+              </ProtectedRoute>
+            }>
               <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/admin/users" element={<AdminUsersPage />} />
               <Route path="/admin/sports" element={<SportsPage />} />

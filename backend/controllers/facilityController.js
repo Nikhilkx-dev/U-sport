@@ -25,6 +25,7 @@ const requestFacility = async (req, res, next) => {
       });
     }
 
+    console.log('[DEBUG BACKEND] requestFacility req.body:', req.body);
     const { sportId, startTime, endTime, purpose } = req.body;
 
     if (!sportId || !startTime || !endTime || !purpose) {

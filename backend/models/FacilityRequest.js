@@ -68,4 +68,6 @@ const facilityRequestSchema = new mongoose.Schema({
   timestamps: true
 });
 
+facilityRequestSchema.index({ status: 1, endTime: 1 });
+
 module.exports = mongoose.model('FacilityRequest', facilityRequestSchema);
